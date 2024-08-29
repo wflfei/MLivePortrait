@@ -5,10 +5,14 @@ The entrance of the gradio for human
 """
 
 import os
+import shutil
+import time
 import tyro
 import subprocess
 import gradio as gr
 import os.path as osp
+from custom.app_file import AppFile, schedule_clean_data, root_project
+from custom.watermark import add_app_watermark
 from src.utils.helper import load_description
 from src.gradio_pipeline import GradioPipeline
 from src.config.crop_config import CropConfig
@@ -72,6 +76,43 @@ def reset_sliders(*args, **kwargs):
     return 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.5, True, True
 
 
+# -- custom --
+def wrapped_init_retargeting_image(*args, **kwargs):
+    source_eye_ratio, source_lip_ratio, crop_img = gradio_pipeline.init_retargeting_image(*args, **kwargs)
+    file_name = f"{int(time.time() * 1000)}{AppFile.get_file_suffix(args[3])}"
+    file_location = AppFile.get_user_image_file_path(file_name)
+    shutil.copyfile(args[3], file_location)
+    return source_eye_ratio, source_lip_ratio, source_eye_ratio, source_lip_ratio, file_name, crop_img
+
+
+def gpu_wrapped_execute_video_bypath(*args, **kwargs):
+    drive_video_path = args[3]
+    # args = args[:3] + AppFile.get_drive_file_path(drive_video_path) + args[4:]
+    list_args = list(args)
+    driving_path = AppFile.get_drive_file_path(drive_video_path)
+    list_args[3] = driving_path
+    if driving_path and driving_path.endswith('pkl'):
+        list_args[2] = driving_path
+        list_args[20] = "Pickle"
+    else:
+        list_args[20] = "Video"
+
+    video_path, video_path_concat = gradio_pipeline.execute_video(*list_args, **kwargs)
+    # add watermark
+    watermarked_video_path, watermarked_video_id = AppFile.new_watermark_video_file()
+    full_source_path = os.path.join(root_project, video_path)
+    add_app_watermark(full_source_path, watermarked_video_path)
+    return video_path, watermarked_video_path
+
+
+def gpu_wrapped_execute_image_retargeting_bypath(*args, **kwargs):
+    retargeting_input_image_path = args[19]
+    # args = args[:19] + AppFile.get_file_path(retargeting_input_image_path) + args[20:]
+    list_args = list(args)
+    list_args[19] = AppFile.get_user_image_file_path(retargeting_input_image_path)
+    return gradio_pipeline.execute_image_retargeting(*list_args, **kwargs)
+
+
 # assets
 title_md = "assets/gradio/gradio_title.md"
 example_portrait_dir = "assets/examples/source"
@@ -98,6 +139,8 @@ data_examples_v2v = [
 retargeting_source_scale = gr.Number(minimum=1.8, maximum=3.2, value=2.5, step=0.05, label="crop scale")
 video_retargeting_source_scale = gr.Number(minimum=1.8, maximum=3.2, value=2.3, step=0.05, label="crop scale")
 driving_smooth_observation_variance_retargeting = gr.Number(value=3e-6, label="motion smooth strength", minimum=1e-11, maximum=1e-2, step=1e-8)
+eye_retargeting_source_slider = gr.Slider(minimum=0, maximum=0.8, step=0.01, label="source eyes-open ratio", interactive=False)
+lip_retargeting_source_slider = gr.Slider(minimum=0, maximum=0.8, step=0.01, label="source lip-open ratio", interactive=False)
 eye_retargeting_slider = gr.Slider(minimum=0, maximum=0.8, step=0.01, label="target eyes-open ratio")
 lip_retargeting_slider = gr.Slider(minimum=0, maximum=0.8, step=0.01, label="target lip-open ratio")
 video_lip_retargeting_slider = gr.Slider(minimum=0, maximum=0.8, step=0.01, label="target lip-open ratio")
@@ -126,6 +169,10 @@ output_video = gr.Video(autoplay=False)
 output_video_paste_back = gr.Video(autoplay=False)
 output_video_i2v = gr.Video(autoplay=False)
 output_video_concat_i2v = gr.Video(autoplay=False)
+
+# -- custom --
+# retargeting_input_image_path = gr.Textbox(type="text", label="Input Image Path")
+# driving_video_input_path = gr.Textbox(type="text", label="Driving Video Path")
 
 
 with gr.Blocks(theme=gr.themes.Soft(font=[gr.themes.GoogleFont("Plus Jakarta Sans")])) as demo:
@@ -287,11 +334,48 @@ with gr.Blocks(theme=gr.themes.Soft(font=[gr.themes.GoogleFont("Plus Jakarta San
                     cache_examples=False,
                 )
 
+    # -- custom --
+    with gr.Row():
+        driving_video_input_path = gr.Textbox(type="text", label="Driving Video Path")
+        retargeting_input_image_path = gr.Textbox(type="text", label="Input Image Path")
+        path_generate_btn = gr.Button("Path Video Execute")
+        path_retargeting_btn = gr.Button("Path Retargeting")
+        path_generate_btn.click(
+            fn=gpu_wrapped_execute_video_bypath,
+            inputs=[
+                source_image_input,
+                source_video_input,
+                driving_video_pickle_input,
+                driving_video_input_path,
+                flag_relative_input,
+                flag_do_crop_input,
+                flag_remap_input,
+                flag_stitching_input,
+                driving_option_input,
+                driving_multiplier,
+                flag_crop_driving_video_input,
+                flag_video_editing_head_rotation,
+                scale,
+                vx_ratio,
+                vy_ratio,
+                scale_crop_driving_video,
+                vx_ratio_crop_driving_video,
+                vy_ratio_crop_driving_video,
+                driving_smooth_observation_variance,
+                tab_selection,
+                v_tab_selection,
+            ],
+            outputs=[output_video_i2v, output_video_concat_i2v],
+            show_progress=True
+        )
+
     # Retargeting Image
     gr.Markdown(load_description("assets/gradio/gradio_description_retargeting.md"), visible=True)
     with gr.Row(visible=True):
         flag_do_crop_input_retargeting_image = gr.Checkbox(value=True, label="do crop (source)")
         flag_stitching_retargeting_input = gr.Checkbox(value=True, label="stitching")
+        eye_retargeting_source_slider.render()
+        lip_retargeting_source_slider.render()
         retargeting_source_scale.render()
         eye_retargeting_slider.render()
         lip_retargeting_slider.render()
@@ -438,9 +522,9 @@ with gr.Blocks(theme=gr.themes.Soft(font=[gr.themes.GoogleFont("Plus Jakarta San
     )
 
     retargeting_input_image.change(
-        fn=gradio_pipeline.init_retargeting_image,
+        fn=wrapped_init_retargeting_image,
         inputs=[retargeting_source_scale, eye_retargeting_slider, lip_retargeting_slider, retargeting_input_image],
-        outputs=[eye_retargeting_slider, lip_retargeting_slider]
+        outputs=[eye_retargeting_source_slider, lip_retargeting_source_slider, eye_retargeting_slider, lip_retargeting_slider, retargeting_input_image_path, retargeting_output_image]
     )
 
     sliders = [eye_retargeting_slider, lip_retargeting_slider, head_pitch_slider, head_yaw_slider, head_roll_slider, mov_x, mov_y, mov_z, lip_variation_zero, lip_variation_one, lip_variation_two, lip_variation_three, smile, wink, eyebrow, eyeball_direction_x, eyeball_direction_y]
@@ -449,7 +533,7 @@ with gr.Blocks(theme=gr.themes.Soft(font=[gr.themes.GoogleFont("Plus Jakarta San
         slider.change(
             fn=gpu_wrapped_execute_image_retargeting,
             inputs=[
-                eye_retargeting_slider, lip_retargeting_slider, head_pitch_slider, head_yaw_slider, head_roll_slider, mov_x, mov_y, mov_z,
+                eye_retargeting_source_slider, lip_retargeting_source_slider, eye_retargeting_slider, lip_retargeting_slider, head_pitch_slider, head_yaw_slider, head_roll_slider, mov_x, mov_y, mov_z,
                 lip_variation_zero, lip_variation_one, lip_variation_two, lip_variation_three, smile, wink, eyebrow, eyeball_direction_x, eyeball_direction_y,
                 retargeting_input_image, retargeting_source_scale, flag_stitching_retargeting_input, flag_do_crop_input_retargeting_image
             ],
@@ -463,8 +547,21 @@ with gr.Blocks(theme=gr.themes.Soft(font=[gr.themes.GoogleFont("Plus Jakarta San
         show_progress=True
     )
 
+    path_retargeting_btn.click(
+        fn=gpu_wrapped_execute_image_retargeting_bypath,
+        inputs=[
+            eye_retargeting_source_slider, lip_retargeting_source_slider, eye_retargeting_slider, lip_retargeting_slider, head_pitch_slider, head_yaw_slider, head_roll_slider, mov_x, mov_y, mov_z,
+            lip_variation_zero, lip_variation_one, lip_variation_two, lip_variation_three, smile, wink, eyebrow, eyeball_direction_x, eyeball_direction_y,
+            retargeting_input_image_path, retargeting_source_scale, flag_stitching_retargeting_input, flag_do_crop_input_retargeting_image
+        ],
+        outputs=[retargeting_output_image, retargeting_output_image_paste_back],
+        show_progress=True
+    )
+
+schedule_clean_data()
 demo.launch(
-    server_port=args.server_port,
-    share=args.share,
-    server_name=args.server_name
+    server_port=11173,
+    share=True,
+    server_name="0.0.0.0",
+    # auth=("yesit", "itsme")
 )

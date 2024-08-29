@@ -221,6 +221,8 @@ class GradioPipeline(LivePortraitPipeline):
     @torch.no_grad()
     def execute_image_retargeting(
         self,
+        source_eye_ratio: float,
+        source_lip_ratio: float,
         input_eye_ratio: float,
         input_lip_ratio: float,
         input_head_pitch_variation: float,
@@ -302,10 +304,10 @@ class GradioPipeline(LivePortraitPipeline):
 
             x_d_new = mov_z * scale_new * (x_c_s @ R_d_new + delta_new) + t_new
             eyes_delta, lip_delta = None, None
-            if input_eye_ratio != self.source_eye_ratio:
+            if input_eye_ratio != source_eye_ratio:
                 combined_eye_ratio_tensor = self.live_portrait_wrapper.calc_combined_eye_ratio([[float(input_eye_ratio)]], source_lmk_user)
                 eyes_delta = self.live_portrait_wrapper.retarget_eye(x_s_user, combined_eye_ratio_tensor)
-            if input_lip_ratio != self.source_lip_ratio:
+            if input_lip_ratio != source_lip_ratio:
                 combined_lip_ratio_tensor = self.live_portrait_wrapper.calc_combined_lip_ratio([[float(input_lip_ratio)]], source_lmk_user)
                 lip_delta = self.live_portrait_wrapper.retarget_lip(x_s_user, combined_lip_ratio_tensor)
             x_d_new = x_d_new + \
@@ -383,9 +385,9 @@ class GradioPipeline(LivePortraitPipeline):
             self.source_eye_ratio = round(float(source_eye_ratio.mean()), 2)
             self.source_lip_ratio = round(float(source_lip_ratio[0][0]), 2)
             log("Calculating eyes-open and lip-open ratios successfully!")
-            return self.source_eye_ratio, self.source_lip_ratio
+            return self.source_eye_ratio, self.source_lip_ratio, crop_info['img_crop']
         else:
-            return source_eye_ratio, source_lip_ratio
+            return source_eye_ratio, source_lip_ratio, img_rgb
 
     @torch.no_grad()
     def execute_video_retargeting(self, input_lip_ratio: float, input_video, retargeting_source_scale: float, driving_smooth_observation_variance_retargeting: float, flag_do_crop_input_retargeting_video=True):

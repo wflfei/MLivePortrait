@@ -16,3 +16,5 @@ tyro==0.8.5
 gradio==4.37.1
 pykalman==0.9.7
 pillow>=10.2.0
+pydantic==2.8.2
+fastapi==0.112.2

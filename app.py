@@ -560,7 +560,7 @@ with gr.Blocks(theme=gr.themes.Soft(font=[gr.themes.GoogleFont("Plus Jakarta San
 
 schedule_clean_data()
 demo.launch(
-    server_port=11184,
+    server_port=args.server_port,
     share=False,
     server_name="0.0.0.0",
     auth=("yesit", "itsme")

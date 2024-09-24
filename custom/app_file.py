@@ -4,6 +4,8 @@ import asyncio
 import os
 import threading
 import time
+import tempfile
+import shutil
 from uuid import uuid4
 
 root_project = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -90,20 +92,47 @@ class AppFile:
         for file_name in os.listdir(user_image_dir):
             file_path = os.path.join(user_image_dir, file_name)
             create_time = os.path.getctime(file_path)
-            # delete file more than 1 day
-            if os.path.isfile(file_path) and time.time() - create_time > 24 * 60 * 60:
+            # delete file more than 12 hours
+            if os.path.isfile(file_path) and time.time() - create_time > 12 * 60 * 60:
                 os.remove(file_path)
 
 
 def loop_clean_data():
     while True:
-        time.sleep(24 * 60 * 60)
+        time.sleep(8 * 60 * 60)
         AppFile.clean_data()
+        clean_gradio_tmp_files()
+
 
 def schedule_clean_data():
     # loop = asyncio.get_event_loop()
     # loop.create_task(loop_clean_data())
     threading.Thread(target=loop_clean_data, daemon=True).start()
+
+
+def force_remove_folder(folder_path):
+    try:
+        # 使用shutil.rmtree()强制删除文件夹及其所有内容
+        shutil.rmtree(folder_path)
+        print(f"文件夹 '{folder_path}' 已成功删除。")
+    except FileNotFoundError:
+        print(f"文件夹 '{folder_path}' 不存在。")
+    except PermissionError:
+        print(f"没有权限删除文件夹 '{folder_path}'。")
+    except Exception as e:
+        print(f"删除文件夹 '{folder_path}' 时发生错误: {str(e)}")
+
+
+def clean_gradio_tmp_files():
+    print("cleaning gradio tmp files ...")
+    tmp_dir = tempfile.gettempdir()
+    gradio_temp = os.path.join(tmp_dir, "gradio")
+    for file_name in os.listdir(gradio_temp):
+        file_path = os.path.join(gradio_temp, file_name)
+        create_time = os.path.getctime(file_path)
+        # delete dirs more than 12 hours
+        if time.time() - create_time > 8 * 60 * 60:
+            force_remove_folder(file_path)
 
 
 if __name__ == '__main__':

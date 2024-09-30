@@ -12,6 +12,7 @@ import subprocess
 import gradio as gr
 import os.path as osp
 from custom.app_file import AppFile, schedule_clean_data, root_project
+from custom.facedit_demo_image import get_facedit_demo_image_path
 from custom.watermark import add_app_watermark
 from src.utils.helper import load_description
 from src.gradio_pipeline import GradioPipeline
@@ -106,10 +107,14 @@ def gpu_wrapped_execute_video_bypath(*args, **kwargs):
 
 
 def gpu_wrapped_execute_image_retargeting_bypath(*args, **kwargs):
-    retargeting_input_image_path = args[19]
+    retargeting_input_image_path: str = args[19]
     # args = args[:19] + AppFile.get_file_path(retargeting_input_image_path) + args[20:]
     list_args = list(args)
-    list_args[19] = AppFile.get_user_image_file_path(retargeting_input_image_path)
+    demo_image = get_facedit_demo_image_path(retargeting_input_image_path)
+    if demo_image is not None:
+        list_args[19] = demo_image
+    else:
+        list_args[19] = AppFile.get_user_image_file_path(retargeting_input_image_path)
     return gradio_pipeline.execute_image_retargeting(*list_args, **kwargs)
 
 

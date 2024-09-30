@@ -102,6 +102,7 @@ def loop_clean_data():
         time.sleep(8 * 60 * 60)
         AppFile.clean_data()
         clean_gradio_tmp_files()
+        clean_animations_folder()
 
 
 def schedule_clean_data():
@@ -133,6 +134,18 @@ def clean_gradio_tmp_files():
         # delete dirs more than 12 hours
         if time.time() - create_time > 8 * 60 * 60:
             force_remove_folder(file_path)
+
+
+def clean_animations_folder():
+        print("cleaning animations data ...")
+        animations_folder = os.path.join(root_project, "animations")
+        for file_name in os.listdir(animations_folder):
+            file_path = os.path.join(animations_folder, file_name)
+            create_time = os.path.getctime(file_path)
+            # delete file more than 48 hours
+            if os.path.isfile(file_path) and time.time() - create_time > 48 * 60 * 60:
+                os.remove(file_path)
+
 
 
 if __name__ == '__main__':

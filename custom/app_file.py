@@ -95,6 +95,13 @@ class AppFile:
             # delete file more than 12 hours
             if os.path.isfile(file_path) and time.time() - create_time > 12 * 60 * 60:
                 os.remove(file_path)
+        print("cleaning watermarked video ...")
+        for file_name in os.listdir(watermark_video_dir):
+            file_path = os.path.join(watermark_video_dir, file_name)
+            create_time = os.path.getctime(file_path)
+            # delete file more than 24 hours
+            if os.path.isfile(file_path) and time.time() - create_time > 24 * 60 * 60:
+                os.remove(file_path)
 
 
 def loop_clean_data():
@@ -137,14 +144,17 @@ def clean_gradio_tmp_files():
 
 
 def clean_animations_folder():
+    try:
         print("cleaning animations data ...")
         animations_folder = os.path.join(root_project, "animations")
         for file_name in os.listdir(animations_folder):
             file_path = os.path.join(animations_folder, file_name)
             create_time = os.path.getctime(file_path)
             # delete file more than 48 hours
-            if os.path.isfile(file_path) and time.time() - create_time > 48 * 60 * 60:
+            if os.path.isfile(file_path) and time.time() - create_time > 18 * 60 * 60:
                 os.remove(file_path)
+    except Exception as e:
+        print(f"清理animations时发生错误:: {str(e)}")
 
 
 

@@ -34,5 +34,6 @@ src/utils/dependencies/XPose/models/UniPose/ops/dist
 src/utils/dependencies/XPose/models/UniPose/ops/MultiScaleDeformableAttention.egg-info
 
 
+/venv
 /data
 .ipynb_checkpoints
